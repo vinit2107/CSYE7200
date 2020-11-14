@@ -2,11 +2,13 @@ package edu.neu.coe.csye7200.asstwc
 
 import java.net.URL
 
+import scala.collection.IterableOnce.iterableOnceExtensionMethods
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.io.{BufferedSource, Source}
 import scala.language.postfixOps
+import scala.sys.process.buildersToProcess
 import scala.util._
 import scala.util.control.NonFatal
 import scala.xml.Node
@@ -25,7 +27,13 @@ object WebCrawler extends App {
   def wget(u: URL): Future[Seq[URL]] = {
     // Hint: write as a for-comprehension, using the method createURL(Option[URL], String) to get the appropriate URL for relative links
     // 16 points.
-    def getURLs(ns: Node): Seq[Try[URL]] = ??? // TO BE IMPLEMENTED
+    def getURLs(ns: Node): Seq[Try[URL]] = {
+      for (n <- ns\\"a"; h <- n\"@href") yield Try(new URL(new URL("http://"), h.text)) match {
+        case Success(a) => createURL(Some(new URL("http://")), h.text)
+        case Failure(_) => createURL(None, h.text)
+      }
+//      for (n <- ns\\"a"; h <- n\"@href") yield createURL(Some(new URL(h.text)), h.text)
+    } // TO BE IMPLEMENTED
 
     def getLinks(g: String): Try[Seq[URL]] = {
       val ny = HTMLParser.parse(g) recoverWith { case f => Failure(new RuntimeException(s"parse problem with URL $u: $f")) }
@@ -33,7 +41,7 @@ object WebCrawler extends App {
     }
     // Hint: write as a for-comprehension, using getURLContent (above) and getLinks above. You might also need MonadOps.asFuture
     // 9 points.
-    ??? // TO BE IMPLEMENTED
+     for (ss <- getURLContent(u); x <- MonadOps.asFuture(getLinks(ss))) yield x // TO BE IMPLEMENTED
   }
 
   def wget(us: Seq[URL]): Future[Seq[Either[Throwable, Seq[URL]]]] = {
@@ -41,7 +49,9 @@ object WebCrawler extends App {
     // Hint: Use wget(URL) (above). MonadOps.sequence and Future.sequence are also available to you to use.
     // 15 points. Implement the rest of this, based on us2 instead of us.
     // TO BE IMPLEMENTED
-    ???
+    val xs = for (u <- us2) yield wget(u)
+    val ys = for (x <- xs) yield MonadOps.sequence(x)
+    Future.sequence(ys)
   }
 
   def crawler(depth: Int, us: Seq[URL]): Future[Seq[URL]] = {
